@@ -1,0 +1,79 @@
+import os
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_search import GoogleSearchAPIWrapper
+from langchain.agents import initialize_agent, AgentType, Tool
+
+# ====================================================================
+# --- ⚠️ 1. CONFIGURACIÓN: REEMPLAZA CON TUS CLAVES REALES ⚠️ ---
+# ====================================================================
+
+# Es una mala práctica de seguridad subir claves directamente a GitHub.
+# Idealmente, usa variables de entorno o archivos .env, pero para simplificar
+# aquí las establecemos directamente para este script de prueba:
+# NOTA: Asegúrate de que estas claves NO se suban a un repositorio público.
+
+# Clave del modelo de IA (Gemini)
+os.environ["GEMINI_API_KEY"] = "TU_CLAVE_GEMINI_AQUÍ" 
+
+# Claves de la API de Búsqueda de Google (Google Custom Search API)
+os.environ["GOOGLE_API_KEY"] = "TU_CLAVE_API_DE_BUSQUEDA_AQUÍ" 
+os.environ["GOOGLE_CSE_ID"] = "TU_ID_DEL_MOTOR_DE_BUSQUEDA_AQUÍ" 
+
+# ====================================================================
+# --- 2. FUNCIONALIDAD DEL AGENTE ---
+# ====================================================================
+
+try:
+    # 2.1. Inicializar la Herramienta de Búsqueda
+    search = GoogleSearchAPIWrapper()
+    google_search_tool = Tool(
+        name="Buscador_Google",
+        func=search.run,
+        description="Una herramienta muy útil para buscar información actual o en tiempo real (fechas, eventos, precios, etc.)."
+    )
+    tools = [google_search_tool]
+
+    # 2.2. Inicializar el Modelo de IA (Cerebro)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+
+    # 2.3. Inicializar el Agente (El que decide cuándo usar la herramienta)
+    # ZERO_SHOT_REACT_DESCRIPTION permite que el modelo razone sobre qué hacer.
+    agent = initialize_agent(
+        tools,
+        llm,
+        agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+        verbose=True, # Muestra el proceso de pensamiento del agente
+        handle_parsing_errors=True
+    )
+
+    # 2.4. Función de Pregunta y Respuesta
+    def preguntar_ia(pregunta):
+        print(f"\n--- 👤 Usuario Pregunta: {pregunta} ---")
+        try:
+            # El agente ejecuta el proceso completo (decidir, buscar si es necesario, y responder)
+            respuesta = agent.run(pregunta)
+            print("\n🤖 IA Responde:")
+            print(respuesta)
+        except Exception as e:
+            print(f"\n⚠️ Ocurrió un error al ejecutar el agente: {e}")
+
+    # ====================================================================
+    # --- 3. PRUEBA Y EJECUCIÓN ---
+    # ====================================================================
+
+    print("\n--- ¡Agente IA con Búsqueda Activo! ---")
+    
+    # 💡 Prueba 1: Pregunta que requiere BÚSQUEDA en tiempo real
+    preguntar_ia("¿Cuál es el marcador final del partido de fútbol más reciente de España?")
+
+    print("\n---------------------------------------------------------")
+
+    # 💡 Prueba 2: Pregunta que NO requiere búsqueda (usa conocimiento interno)
+    preguntar_ia("¿Quién escribió la obra 'El Quijote' y dónde nació?")
+
+except EnvironmentError as e:
+    print(e)
+    print("\nEl programa no puede continuar sin las claves de API configuradas.")
+except Exception as e:
+    print(f"\nSe encontró un error crítico durante la inicialización: {e}")
+
