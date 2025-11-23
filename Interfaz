@@ -1,0 +1,88 @@
+import os
+import streamlit as st
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_search import GoogleSearchAPIWrapper
+from langchain.agents import initialize_agent, AgentType, Tool
+
+# ====================================================================
+# --- 1. CONFIGURACIÓN DE CLAVES (REEMPLAZAR) ---
+# ====================================================================
+
+os.environ["GEMINI_API_KEY"] = "PEGA_AQUÍ_TU_CLAVE_DE_GEMINI" 
+os.environ["GOOGLE_API_KEY"] = "PEGA_AQUÍ_TU_CLAVE_DE_API_BUSQUEDA" 
+os.environ["GOOGLE_CSE_ID"] = "PEGA_AQUÍ_TU_ID_DE_MOTOR_DE_BUSQUEDA" 
+
+# --- FUNCIÓN DE INICIALIZACIÓN DEL AGENTE ---
+
+@st.cache_resource
+def inicializar_crono_agente():
+    if not all([os.getenv("GEMINI_API_KEY"), os.getenv("GOOGLE_API_KEY"), os.getenv("GOOGLE_CSE_ID")]):
+        st.error("¡ERROR! Las claves de API no están configuradas.")
+        return None
+
+    # Inicialización de Herramientas
+    search = GoogleSearchAPIWrapper()
+    google_search_tool = Tool(
+        name="Buscador_Google",
+        func=search.run,
+        description="Una herramienta útil para buscar información actual (fechas, noticias, eventos, precios)."
+    )
+    tools = [google_search_tool]
+
+    # Inicialización del Agente (Crono Agente)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+
+    crono_agente = initialize_agent(
+        tools,
+        llm,
+        agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+        verbose=False, 
+        handle_parsing_errors=True,
+        agent_kwargs={
+            "system_message": (
+                "Eres Crono, un asistente de IA experto en búsqueda de información actualizada. "
+                "Siempre que la pregunta requiera datos en tiempo real o externos, debes usar la herramienta 'Buscador_Google'."
+            )
+        }
+    )
+    return crono_agente
+
+# ====================================================================
+# --- 2. INTERFAZ DE STREAMLIT ---
+# ====================================================================
+
+# 2.1. Título y Estilo
+st.set_page_config(page_title="Crono Agente 🔎", layout="centered")
+st.title("🤖 Crono Agente: Tu Buscador IA Actualizado")
+st.markdown("---")
+st.markdown("Pregunta a Crono cualquier cosa que requiera **información en tiempo real**.")
+
+# Inicializar el Agente
+crono_agente = inicializar_crono_agente()
+
+if crono_agente:
+    # 2.2. Campo de Entrada para el Usuario
+    pregunta = st.text_input("Escribe tu pregunta aquí:", placeholder="Ej: ¿Cuál es el precio del Bitcoin hoy?")
+
+    # 2.3. Lógica de Respuesta
+    if st.button("Buscar con Crono 🚀", type="primary") and pregunta:
+        with st.spinner('Crono está buscando en la web...'):
+            try:
+                # Ejecutar el agente con la pregunta
+                respuesta = crono_agente.run(pregunta)
+                
+                # Mostrar la respuesta
+                st.success("✅ Respuesta de Crono:")
+                st.info(respuesta)
+                
+            except Exception as e:
+                st.error(f"⚠️ Ocurrió un error al procesar tu solicitud: {e}")
+    
+    # 2.4. Pie de página
+    st.markdown("---")
+    st.caption("Desarrollado con Gemini 2.5 Flash, LangChain y Streamlit.")
+
+# --- INSTRUCCIONES DE EJECUCIÓN (NO ES PARTE DEL CÓDIGO PYTHON) ---
+# Para ejecutar la aplicación:
+# 1. Guarda el código como 'app_crono.py'
+# 2. Ejecuta en la terminal: streamlit run app_crono.py
